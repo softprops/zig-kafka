@@ -1,3 +1,4 @@
+//! Main entrypoint for interacting with Kafka servers
 const std = @import("std");
 const codec = @import("codec.zig");
 const protocol = @import("protocol.zig");
@@ -5,6 +6,7 @@ const protocol = @import("protocol.zig");
 pub const Client = struct {
     const Self = @This();
 
+    /// Configuration options available to clients
     pub const Options = struct {
         /// list of bootstrap cluster urls to get broker information from
         bootstrap_urls: [][]const u8,
