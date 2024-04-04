@@ -60,6 +60,9 @@ fn parseAddrs(
 // https://ziglang.cc/zig-cookbook/04-02-tcp-client.html
 
 test "bootstrap" {
+    if (std.os.getenv("CI")) |_| {
+        return error.SkipZigTest;
+    }
     const allocator = std.testing.allocator;
     var bootstrap = [_][]const u8{"localhost:9092"};
     const addrs = try parseAddrs(allocator, &bootstrap);
@@ -88,8 +91,8 @@ test "bootstrap" {
 
         // headers
         try writer.writeI16(apiKey.toInt());
-        try writer.writeI16(apiVersion); // api version for api key
-        try writer.writeI32(correlationId); // correlation id
+        try writer.writeI16(apiVersion);
+        try writer.writeI32(correlationId);
         try writer.writeStr(clientId);
 
         // message
@@ -123,16 +126,16 @@ test "bootstrap" {
         std.debug.print("read bytes {any}\n", .{respBytes});
 
         var reader = codec.Reader.init(allocator, respBytes);
+        //defer reader.deinit();
 
         // headers
         try std.testing.expect(try reader.readI32() == correlationId);
 
         // response
         const response = try reader.readType(responseType);
-        defer {
-            allocator.free(response.api_keys);
-        }
-        for (response.api_keys) |apikey| {
+        const owned = codec.Owned(responseType).init(response, reader.allocator);
+        defer owned.deinit();
+        for (owned.value.api_keys) |apikey| {
             std.debug.print("apikey {any}\n", .{apikey});
         }
     }

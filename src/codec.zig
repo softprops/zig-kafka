@@ -1,14 +1,35 @@
 /// https://kafka.apache.org/protocol#protocol_types
 const std = @import("std");
 
+/// Represents a value and a deferred release of memory the caller owns.
+/// The caller owns calling `deinit()` after using the value.
+pub fn Owned(comptime T: type) type {
+    return struct {
+        value: T,
+        allocator: std.heap.ArenaAllocator,
+
+        pub fn init(value: T, allocator: std.heap.ArenaAllocator) @This() {
+            return .{ .value = value, .allocator = allocator };
+        }
+
+        pub fn deinit(self: @This()) void {
+            self.allocator.deinit();
+        }
+    };
+}
+
 /// Decodes kafka protocol types from bytes read from the wire
 pub const Reader = struct {
     data: []const u8,
-    allocator: std.mem.Allocator,
+    allocator: std.heap.ArenaAllocator,
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, data: []const u8) Self {
-        return .{ .allocator = allocator, .data = data };
+        return .{ .allocator = std.heap.ArenaAllocator.init(allocator), .data = data };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.allocator.deinit();
     }
 
     fn read(self: *Self, n: usize) ![]const u8 {
@@ -124,7 +145,7 @@ pub const Reader = struct {
                     return &[_]p.child{};
                 }
 
-                var buf = try std.ArrayList(p.child).initCapacity(self.allocator, @intCast(len));
+                var buf = try std.ArrayList(p.child).initCapacity(self.allocator.allocator(), @intCast(len));
                 defer buf.deinit();
                 //try buf.resize(@intCast(len));
                 for (0..@intCast(len)) |_| {
@@ -277,6 +298,7 @@ test "type round trip" {
     }
 
     var reader = Reader.init(allocator, bytes);
+    defer reader.deinit();
     try std.testing.expectEqualDeep(T{}, try reader.readType(T));
 }
 
