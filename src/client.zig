@@ -6,7 +6,7 @@ pub const Client = struct {
     const Self = @This();
 
     pub const Options = struct {
-        /// list of boostrap cluster urls to get broker information from
+        /// list of bootstrap cluster urls to get broker information from
         bootstrap_urls: [][]const u8,
     };
 
@@ -68,24 +68,34 @@ test "bootstrap" {
         const stream = try std.net.tcpConnectToAddress(addr);
         defer stream.close();
 
-        var buf = std.ArrayList(u8).init(allocator);
-        defer buf.deinit();
-        var reqWriter = codec.Writer(std.ArrayList(u8).Writer).init(buf.writer());
+        // send(apiKey, apiVersion, req: anytype, respType: type)
+
+        // send request
+
+        const correlationId: i32 = 1;
+        const request = protocol.ApiVersionsRequest{};
+        const apiVersion: i16 = 2;
+        const apiKey: protocol.ApiKey = .apiVersions;
+        const responseType = protocol.ApiVersionsResponse;
+        const clientId = "clientId";
+
+        var reqBuf = std.ArrayList(u8).init(allocator);
+        defer reqBuf.deinit();
+        var writer = codec.Writer(std.ArrayList(u8).Writer).init(reqBuf.writer());
 
         // message size
-        try reqWriter.writeI32(0); // place holder for request size, we'll fill this out after writing out the rest of the request bytes
+        try writer.writeI32(0); // place holder for request size, we'll fill this out after writing out the rest of the request bytes
 
         // headers
-        const correlationId: i32 = 1;
-        try reqWriter.writeI16(protocol.ApiKey.apiVersions.toInt());
-        try reqWriter.writeI16(2); // api version for api key
-        try reqWriter.writeI32(correlationId); // correlation id
-        try reqWriter.writeStr("clientId");
+        try writer.writeI16(apiKey.toInt());
+        try writer.writeI16(apiVersion); // api version for api key
+        try writer.writeI32(correlationId); // correlation id
+        try writer.writeStr(clientId);
 
         // message
-        try reqWriter.writeType(protocol.ApiVersionsRequest{});
+        try writer.writeType(request);
 
-        var reqBytes = try buf.toOwnedSlice();
+        var reqBytes = try reqBuf.toOwnedSlice();
         defer allocator.free(reqBytes);
 
         // rewrite the first 4 bytes to be the encoded request len
@@ -94,8 +104,10 @@ test "bootstrap" {
             reqBytes[i] = b;
         }
         try stream.writer().writeAll(reqBytes);
-
         std.debug.print("wrote req {any}\n", .{reqBytes});
+
+        // process response
+
         var streamReader = stream.reader();
 
         // read response size
@@ -110,13 +122,13 @@ test "bootstrap" {
         _ = try streamReader.read(respBytes);
         std.debug.print("read bytes {any}\n", .{respBytes});
 
-        var responseReader = codec.Reader.init(allocator, respBytes);
+        var reader = codec.Reader.init(allocator, respBytes);
 
         // headers
-        try std.testing.expect(try responseReader.readI32() == correlationId);
+        try std.testing.expect(try reader.readI32() == correlationId);
 
         // response
-        const response = try responseReader.readType(protocol.ApiVersionsResponse);
+        const response = try reader.readType(responseType);
         defer {
             allocator.free(response.api_keys);
         }
