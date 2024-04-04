@@ -1,6 +1,10 @@
 //! Implementation of the [Kafka protocol](https://kafka.apache.org/protocol)
 const std = @import("std");
 
+const apiversions = @import("apiversions.zig");
+pub const ApiVersionsRequest = apiversions.ApiVersionsRequest;
+pub const ApiVersionsResponse = apiversions.ApiVersionsResponse;
+
 /// The following enumerates the codes that the ApiKey in the request can take for available request types.
 ///
 /// see also https://kafka.apache.org/protocol#protocol_api_keys

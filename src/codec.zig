@@ -45,6 +45,14 @@ pub const Reader = struct {
         return @bitCast(@constCast((try self.read(8))[0..8]).*);
     }
 
+    pub fn readNullableStr(self: *Self) !?[]const u8 {
+        const len = try self.readI16();
+        if (len == -1) {
+            return null;
+        }
+        return if (len > 0) try self.read(@intCast(len)) else "";
+    }
+
     pub fn readStr(self: *Self) ![]const u8 {
         const len = try self.readI16();
         return if (len > 0) self.read(@intCast(len)) else "";
@@ -66,11 +74,24 @@ pub const Reader = struct {
     pub fn readType(self: *Self, comptime T: type) !T {
         const info = @typeInfo(T);
         switch (info) {
+            .Optional => |o| {
+                // we only support optional strs
+                if (o.child == []const u8) {
+                    return self.readNullableStr();
+                }
+                @compileError("optional types of " ++ @typeName(o.child) ++ " are not supported");
+            },
             .Struct => |s| {
                 var parsed: T = undefined;
                 // todo: provide hook for custom struct reading
                 inline for (s.fields) |field| {
-                    @field(parsed, field.name) = try self.readType(field.type);
+                    @field(parsed, field.name) = self.readType(field.type) catch |err| {
+                        std.debug.print(
+                            "failed to resolve value of type {s} for field {s}\n",
+                            .{ field.name, @typeName(field.type) },
+                        );
+                        return err;
+                    };
                 }
                 return parsed;
             },
@@ -99,20 +120,20 @@ pub const Reader = struct {
                 }
                 const len = try self.readI32();
 
-                // var buf = try std.ArrayList(p.child).initCapacity(self.allocator, @intCast(len));
-                // defer buf.deinit();
-                // try buf.resize(@intCast(len));
-                // var slice = try buf.toOwnedSlice();
-                // for (0..@intCast(len)) |i| {
-                //     slice[i] = try self.readType(p.child);
-                // }
-                // return slice;
-                std.debug.print("dont yet now how to read slice of {any} {any}s\n", .{ len, @typeName(T) });
+                if (len < 1) {
+                    return &[_]p.child{};
+                }
+
+                var buf = try std.ArrayList(p.child).initCapacity(self.allocator, @intCast(len));
+                defer buf.deinit();
+                //try buf.resize(@intCast(len));
+                for (0..@intCast(len)) |_| {
+                    buf.appendAssumeCapacity(try self.readType(p.child));
+                }
+                return try buf.toOwnedSlice();
+                //std.debug.print("dont yet now how to read slice of {any} {any}s\n", .{ len, @typeName(T) });
                 // @compileLog("note: reading slices of type " ++ @typeName(p.child) ++ "is not yet supported");
-                return &[_]p.child{};
-                // todo: how to read into a slice?
-                //const len = try self.readI16();
-                //return if (len > 0) self.read(@intCast(len)) else "";
+                //return &[_]p.child{};
             },
             else => |otherwise| {
                 std.debug.print("unable to parse type {any}", .{otherwise});
