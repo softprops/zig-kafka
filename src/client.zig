@@ -71,51 +71,43 @@ test "bootstrap" {
     };
     const addrs = try parseAddrs(allocator, &bootstrap);
     defer allocator.free(addrs);
+
     for (addrs) |addr| {
         const stream = try std.net.tcpConnectToAddress(addr);
         defer stream.close();
 
-        // send(apiKey, apiVersion, req: anytype, respType: type)
-
-        // send request
-
-        const correlationId: i32 = 1;
+        // roundtrip
         const request = protocol.MetadataRequest{
             // .topic_names = &([_][]const u8{"test"}),
         };
         const responseType = protocol.MetadataReponse;
         const headers = protocol.MessageHeaders.init(.metadata, 8, 1, "clientId");
+
         var reqBuf = std.ArrayList(u8).init(allocator);
         defer reqBuf.deinit();
         var writer = codec.Writer(std.ArrayList(u8).Writer).init(reqBuf.writer());
 
-        // message size
-        try writer.writeI32(0); // place holder for request size, we'll fill this out after writing out the rest of the request bytes
-
-        // headers
+        // message (placeholder) size
+        try writer.writeI32(0);
         try writer.writeType(headers);
-
-        // message
         try writer.writeType(request);
 
-        var reqBytes = try reqBuf.toOwnedSlice();
+        const reqBytes = try reqBuf.toOwnedSlice();
         defer allocator.free(reqBytes);
 
-        // rewrite the first 4 bytes to be the encoded request len
+        // rewrite size message message segment with the actual message size
         const sizeBytes = codec.packU32(@as(u32, @intCast(reqBytes.len)) - 4);
         for (sizeBytes, 0..) |b, i| {
             reqBytes[i] = b;
         }
+
         try stream.writer().writeAll(reqBytes);
+
         std.debug.print("...\n", .{});
         std.debug.print("sent {any}\n", .{reqBytes});
 
-        // process response
-
-        var streamReader = stream.reader();
-
-        // read response size
-        var respSize = try streamReader.readIntBig(i32);
+        // response size
+        const respSize = try stream.reader().readIntBig(i32);
 
         var respBuf = try std.ArrayList(u8).initCapacity(allocator, @intCast(respSize));
         defer respBuf.deinit();
@@ -123,13 +115,13 @@ test "bootstrap" {
         var respBytes = try respBuf.toOwnedSlice();
         defer allocator.free(respBytes);
 
-        _ = try streamReader.read(respBytes);
+        _ = try stream.reader().read(respBytes);
         std.debug.print("recv {any}\n", .{respBytes});
 
         var reader = codec.Reader.init(allocator, respBytes);
 
         // headers
-        try std.testing.expect(try reader.readI32() == correlationId);
+        try std.testing.expect(try reader.readI32() == headers.correlationId);
 
         // response
         const response = try reader.readType(responseType);
