@@ -78,10 +78,12 @@ test "bootstrap" {
         // send request
 
         const correlationId: i32 = 1;
-        const request = protocol.ApiVersionsRequest{};
-        const apiVersion: i16 = 2;
-        const apiKey: protocol.ApiKey = .apiVersions;
-        const responseType = protocol.ApiVersionsResponse;
+        const request = protocol.MetadataRequest{
+            //  .topic_names = &([_][]const u8{"test"}),
+        };
+        const apiVersion: i16 = 8;
+        const apiKey: protocol.ApiKey = .metadata;
+        const responseType = protocol.MetadataReponse;
         const clientId = "clientId";
 
         var reqBuf = std.ArrayList(u8).init(allocator);
@@ -109,7 +111,8 @@ test "bootstrap" {
             reqBytes[i] = b;
         }
         try stream.writer().writeAll(reqBytes);
-        std.debug.print("wrote req {any}\n", .{reqBytes});
+        std.debug.print("...\n", .{});
+        std.debug.print("sent {any}\n", .{reqBytes});
 
         // process response
 
@@ -125,10 +128,9 @@ test "bootstrap" {
         defer allocator.free(respBytes);
 
         _ = try streamReader.read(respBytes);
-        std.debug.print("read bytes {any}\n", .{respBytes});
+        std.debug.print("recv {any}\n", .{respBytes});
 
         var reader = codec.Reader.init(allocator, respBytes);
-        //defer reader.deinit();
 
         // headers
         try std.testing.expect(try reader.readI32() == correlationId);
@@ -137,8 +139,9 @@ test "bootstrap" {
         const response = try reader.readType(responseType);
         const owned = codec.Owned(responseType).init(response, reader.allocator);
         defer owned.deinit();
-        for (owned.value.api_keys) |apikey| {
-            std.debug.print("apikey {any}\n", .{apikey});
+        std.debug.print("response {}\n", .{owned.value});
+        for (owned.value.brokers) |broker| {
+            std.debug.print("broker {s}:{d}\n", .{ broker.host, broker.port });
         }
     }
 }

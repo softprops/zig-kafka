@@ -147,14 +147,10 @@ pub const Reader = struct {
 
                 var buf = try std.ArrayList(p.child).initCapacity(self.allocator.allocator(), @intCast(len));
                 defer buf.deinit();
-                //try buf.resize(@intCast(len));
                 for (0..@intCast(len)) |_| {
                     buf.appendAssumeCapacity(try self.readType(p.child));
                 }
                 return try buf.toOwnedSlice();
-                //std.debug.print("dont yet now how to read slice of {any} {any}s\n", .{ len, @typeName(T) });
-                // @compileLog("note: reading slices of type " ++ @typeName(p.child) ++ "is not yet supported");
-                //return &[_]p.child{};
             },
             else => |otherwise| {
                 std.debug.print("unable to parse type {any}", .{otherwise});
@@ -284,7 +280,11 @@ test "type round trip" {
         f64: f64 = 64.64,
         string: []const u8 = "string",
         bytes: []const u8 = "bytes",
-        children: []const C = &([_]C{}),
+        children: []const C = &([_]C{
+            .{
+                .name = "test",
+            },
+        }),
     };
     try writer.writeType(
         T{},
