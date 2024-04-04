@@ -1,6 +1,18 @@
 //! Implementation of the [Kafka protocol](https://kafka.apache.org/protocol)
 const std = @import("std");
 
+pub const ApiKey = enum(i16) {
+    produce = 0,
+    fetch = 1,
+    offset = 2,
+    metadata = 3,
+    // todo: others
+
+    pub fn toInt(self: @This()) i16 {
+        return @intFromEnum(self);
+    }
+};
+
 /// https://kafka.apache.org/protocol#The_Messages_Fetch
 /// assume version 16, api key = 1
 pub const FetchRequest = struct {
