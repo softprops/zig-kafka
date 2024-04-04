@@ -1,84 +1,102 @@
 //! Implementation of the [Kafka protocol](https://kafka.apache.org/protocol)
 const std = @import("std");
 
+/// The following enumerates the codes that the ApiKey in the request can take for available request types.
+///
+/// see also https://kafka.apache.org/protocol#protocol_api_keys
 pub const ApiKey = enum(i16) {
     produce = 0,
     fetch = 1,
     offset = 2,
     metadata = 3,
-    // todo: others
+    leaderAndIsr = 4,
+    stopReplica = 5,
+    updateMetadata = 6,
+    controlledShutdown = 7,
+    offsetCommit = 8,
+    offsetFetch = 9,
+    findCoordinator = 10,
+    joinGroup = 11,
+    heartbeat = 12,
+    leaveGroup = 13,
+    syncGroup = 14,
+    describeGroups = 15,
+    listGroups = 16,
+    saslHandshake = 17,
+    apiVersions = 18,
+    createTopics = 19,
+    deleteTopics = 20,
+    deleteRecords = 21,
+    initProducerId = 22,
+    offsetForLeaderEpoch = 23,
+    addPartitionsToTxn = 24,
+    addOffsetsToTxn = 25,
+    endTxn = 26,
+    writeTxnMarkers = 27,
+    txnOffsetCommit = 28,
+    describeAcls = 29,
+    createAcls = 30,
+    deleteAcls = 31,
+    describeConfigs = 32,
+    alterConfigs = 33,
+    alterReplicaLogDirs = 34,
+    describeLogDirs = 35,
+    saslAuthenticate = 36,
+    createPartitions = 37,
+    createDelegationToken = 38,
+    renewDelegationToken = 39,
+    expireDelegationToken = 40,
+    describeDelegationToken = 41,
+    deleteGroups = 42,
+    electLeaders = 43,
+    incrementalAlterConfigs = 44,
+    alterPartitionReassignments = 45,
+    listPartitionReassignments = 46,
+    offsetDelete = 47,
 
+    /// the serialized format of these apikeys
     pub fn toInt(self: @This()) i16 {
         return @intFromEnum(self);
     }
 };
 
-/// https://kafka.apache.org/protocol#The_Messages_Fetch
-/// assume version 16, api key = 1
-pub const FetchRequest = struct {
-    //header: HeaderRequest,
-    /// The broker ID of the follower, of -1 if this request is from a consumer.
-    replica_id: i32 = -1,
-    /// The maximum time in milliseconds to wait for the response.
-    max_wait_ms: i32,
-    /// The minimum bytes to accumulate in the response.
-    min_bytes: i32,
-    /// The topics to fetch where keys are The name of the topic to fetch and values are the partitions to fetch.
-    topics: std.StringHashMap(TopicPartitionFetchRequest),
-};
-
-pub const TopicPartitionFetchRequest = struct {
-    /// The partition index where the keys are the partition inde and values are contain the partiion info
-    partitions: std.AutoHashMap(i32, PartitionFetchRequest),
-};
-
-pub const PartitionFetchRequest = struct {
-    /// The message offset.
-    fetch_offset: i32,
-    /// The maximum bytes to fetch from this partition. See KIP-74 for cases where this limit may not be honored.
-    partition_max_bytes: i32 = std.math.maxInt(i32),
-};
-
+/// An enumeration of error codes indicating what problem occurred on the server.
+///
+/// see also https://kafka.apache.org/protocol#protocol_error_codes
 pub const Error = enum(i8) {
     unknown_server_error = -1,
+    none = 0,
+    offset_out_of_range = 1,
+    corrupt_message = 2,
 
     fn retryable(self: @This()) bool {
         return switch (self) {
-            .unknown_server_error => true,
+            .corrupt_message => true,
             else => false,
         };
     }
 };
 
-// test "fetch request" {
-//     const allocator = std.testing.allocator;
-//     var topics = std.StringHashMap(TopicPartitionFetchRequest).init(allocator);
-//     var paritions = std.AutoHashMap(i32, PartitionFetchRequest).init(allocator);
-//     topics.putAssumeCapacity("foo", .{ .paritions = paritions });
-//     const req = FetchRequest{
-//         // https://docs.confluent.io/platform/current/installation/configuration/consumer-configs.html#fetch-max-wait-ms
-//         .max_wait_ms = 500,
-//         // https://docs.confluent.io/platform/current/installation/configuration/consumer-configs.html#fetch-min-bytes
-//         .min_bytes = 1,
-//         .topics = topics,
-//     };
-//     _ = req;
-// }
-
 test "error" {
     const tests = [_]struct {
         expect: Error,
         code: i8,
+        retryable: bool,
     }{
         .{
             .expect = .unknown_server_error,
             .code = -1,
+            .retryable = false,
         },
     };
     for (tests) |t| {
         try std.testing.expectEqual(
             @as(Error, @enumFromInt(t.code)),
             t.expect,
+        );
+        try std.testing.expectEqual(
+            @as(Error, @enumFromInt(t.code)).retryable(),
+            t.retryable,
         );
     }
 }
