@@ -13,7 +13,7 @@ pub const Request = struct { // v8
     include_topic_authorized_operations: bool = false,
 };
 
-pub const Response = struct { // vll
+pub const Response = struct { // vl2
     /// The duration in milliseconds for which the request was throttled due to a quota violation, or zero if the request did not violate any quota.
     throttle_time_ms: i32,
     /// Each broker in the response.

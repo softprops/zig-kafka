@@ -66,7 +66,9 @@ test "bootstrap" {
         return error.SkipZigTest;
     }
     const allocator = std.testing.allocator;
-    var bootstrap = [_][]const u8{"localhost:9092"};
+    var bootstrap = [_][]const u8{
+        "localhost:9092",
+    };
     const addrs = try parseAddrs(allocator, &bootstrap);
     defer allocator.free(addrs);
     for (addrs) |addr| {
@@ -79,13 +81,10 @@ test "bootstrap" {
 
         const correlationId: i32 = 1;
         const request = protocol.MetadataRequest{
-            //  .topic_names = &([_][]const u8{"test"}),
+            // .topic_names = &([_][]const u8{"test"}),
         };
-        const apiVersion: i16 = 8;
-        const apiKey: protocol.ApiKey = .metadata;
         const responseType = protocol.MetadataReponse;
-        const clientId = "clientId";
-
+        const headers = protocol.MessageHeaders.init(.metadata, 8, 1, "clientId");
         var reqBuf = std.ArrayList(u8).init(allocator);
         defer reqBuf.deinit();
         var writer = codec.Writer(std.ArrayList(u8).Writer).init(reqBuf.writer());
@@ -94,10 +93,7 @@ test "bootstrap" {
         try writer.writeI32(0); // place holder for request size, we'll fill this out after writing out the rest of the request bytes
 
         // headers
-        try writer.writeI16(apiKey.toInt());
-        try writer.writeI16(apiVersion);
-        try writer.writeI32(correlationId);
-        try writer.writeStr(clientId);
+        try writer.writeType(headers);
 
         // message
         try writer.writeType(request);

@@ -10,6 +10,27 @@ pub const ApiVersionsResponse = apiversions.Response;
 pub const MetadataRequest = metadata.Request;
 pub const MetadataReponse = metadata.Response;
 
+pub const MessageHeaders = struct {
+    apiKey: i16,
+    apiVersion: i16,
+    correlationId: i32,
+    clientId: []const u8,
+
+    pub fn init(
+        apiKey: ApiKey,
+        apiVersion: i16,
+        correlationId: i32,
+        clientId: []const u8,
+    ) @This() {
+        return .{
+            .apiKey = apiKey.toInt(),
+            .apiVersion = apiVersion,
+            .correlationId = correlationId,
+            .clientId = clientId,
+        };
+    }
+};
+
 /// The following enumerates the codes that the ApiKey in the request can take for available request types.
 ///
 /// see also https://kafka.apache.org/protocol#protocol_api_keys

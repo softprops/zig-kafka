@@ -106,13 +106,19 @@ pub const Reader = struct {
                 var parsed: T = undefined;
                 // todo: provide hook for custom struct reading
                 inline for (s.fields) |field| {
-                    @field(parsed, field.name) = self.readType(field.type) catch |err| {
+                    const value = self.readType(field.type) catch |err| {
                         std.debug.print(
-                            "failed to resolve value of type {s} for field {s}\n",
-                            .{ field.name, @typeName(field.type) },
+                            "failed to resolve value of type {s} for field {s} of object {any}\n",
+                            .{
+                                field.name,
+                                @typeName(field.type),
+                                parsed,
+                            },
                         );
                         return err;
                     };
+                    std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
+                    @field(parsed, field.name) = value;
                 }
                 return parsed;
             },
@@ -139,7 +145,9 @@ pub const Reader = struct {
                 if (p.child == u8) {
                     return self.readStr();
                 }
+                std.debug.print("reading slice len\n", .{});
                 const len = try self.readI32();
+                std.debug.print("read slice len {d}\n", .{len});
 
                 if (len < 1) {
                     return &[_]p.child{};
