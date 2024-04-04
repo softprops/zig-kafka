@@ -2,8 +2,8 @@
 const std = @import("std");
 
 const apiversions = @import("apiversions.zig");
-pub const ApiVersionsRequest = apiversions.ApiVersionsRequest;
-pub const ApiVersionsResponse = apiversions.ApiVersionsResponse;
+pub const ApiVersionsRequest = apiversions.Request;
+pub const ApiVersionsResponse = apiversions.Response;
 
 /// The following enumerates the codes that the ApiKey in the request can take for available request types.
 ///
