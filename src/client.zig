@@ -97,20 +97,17 @@ fn roundTrip(
 
     try streamWriter.writeAll(reqBytes);
 
-    std.debug.print("...\n", .{});
-    std.debug.print("sent {any}\n", .{reqBytes});
+    std.log.debug("sent {any}\n", .{reqBytes});
 
-    // response size
     const respLen = try streamReader.readIntBig(i32);
-
     var respBuf = try std.ArrayList(u8).initCapacity(allocator, @intCast(respLen));
     defer respBuf.deinit();
-    try respBuf.resize(@intCast(respLen));
+    try respBuf.resize(respBuf.capacity);
     var respBytes = try respBuf.toOwnedSlice();
     errdefer allocator.free(respBytes);
 
     _ = try streamReader.read(respBytes);
-    std.debug.print("recv {any}\n", .{respBytes});
+    std.log.debug("recv {any}\n", .{respBytes});
 
     var reader = codec.Reader.init(allocator, respBytes);
 
@@ -154,9 +151,14 @@ test "roundTrip" {
             stream.writer(),
         );
         defer response.deinit();
-        std.debug.print("response {}\n", .{response.value});
+        std.debug.print("brokers\n", .{});
         for (response.value.brokers) |broker| {
-            std.debug.print("broker {s}:{d}\n", .{ broker.host, broker.port });
+            std.debug.print(" * {s}:{d}\n", .{ broker.host, broker.port });
+        }
+
+        std.debug.print("topics\n", .{});
+        for (response.value.topics) |topic| {
+            std.debug.print(" * {?s}\n", .{topic.name});
         }
     }
 }
