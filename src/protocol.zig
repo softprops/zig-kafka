@@ -88,6 +88,14 @@ pub const ApiKey = enum(i16) {
     pub fn toInt(self: @This()) i16 {
         return @intFromEnum(self);
     }
+
+    pub fn responseType(comptime self: @This()) type {
+        return switch (self) {
+            .metadata => MetadataReponse,
+            .apiVersions => ApiVersionsResponse,
+            else => MetadataReponse, // fixme: fill in other responses
+        };
+    }
 };
 
 /// An enumeration of error codes indicating what problem occurred on the server.

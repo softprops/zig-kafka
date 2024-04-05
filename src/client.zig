@@ -62,16 +62,15 @@ fn parseAddrs(
 // https://ziglang.cc/zig-cookbook/04-02-tcp-client.html
 fn roundTrip(
     allocator: std.mem.Allocator,
-    apiKey: protocol.ApiKey,
+    comptime apiKey: protocol.ApiKey,
     apiVersion: i16,
     correlationId: i32,
     clientId: []const u8,
     request: anytype,
-    // todo: we should be able to derive a response type from an apiKey
-    comptime responseType: type,
     streamReader: anytype,
     streamWriter: anytype,
-) !codec.Owned(responseType) {
+) !codec.Owned(apiKey.responseType()) {
+    const Response = apiKey.responseType();
     const headers = protocol.MessageHeaders.init(
         apiKey,
         apiVersion,
@@ -121,8 +120,8 @@ fn roundTrip(
     }
 
     // response
-    return codec.Owned(responseType).fromReader(
-        try reader.readType(responseType),
+    return codec.Owned(Response).fromReader(
+        try reader.readType(Response),
         reader,
     );
 }
@@ -146,7 +145,6 @@ test "roundTrip" {
         const request = protocol.MetadataRequest{
             //.topic_names = &([_][]const u8{"test"}),
         };
-        const responseType = protocol.MetadataReponse;
 
         const owned = try roundTrip(
             allocator,
@@ -155,7 +153,6 @@ test "roundTrip" {
             1,
             "clientId",
             request,
-            responseType,
             stream.reader(),
             stream.writer(),
         );
