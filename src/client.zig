@@ -148,7 +148,7 @@ test "roundTrip" {
             1,
             "clientId",
             protocol.MetadataRequest{
-                //.topic_names = &([_][]const u8{"test"}),
+                .topic_names = &([_][]const u8{"test"}),
             },
             stream.reader(),
             stream.writer(),
