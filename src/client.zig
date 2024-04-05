@@ -60,8 +60,74 @@ fn parseAddrs(
 }
 
 // https://ziglang.cc/zig-cookbook/04-02-tcp-client.html
+fn roundTrip(
+    allocator: std.mem.Allocator,
+    apiKey: protocol.ApiKey,
+    apiVersion: i16,
+    correlationId: i32,
+    clientId: []const u8,
+    request: anytype,
+    // todo: we should be able to derive a response type from an apiKey
+    comptime responseType: type,
+    streamReader: anytype,
+    streamWriter: anytype,
+) !codec.Owned(responseType) {
+    const headers = protocol.MessageHeaders.init(
+        apiKey,
+        apiVersion,
+        correlationId,
+        clientId,
+    );
+    var reqBuf = std.ArrayList(u8).init(allocator);
+    defer reqBuf.deinit();
+    var writer = codec.Writer(std.ArrayList(u8).Writer).init(reqBuf.writer());
 
-test "bootstrap" {
+    // message (placeholder) size
+    try writer.writeI32(0);
+    try writer.writeType(headers);
+    try writer.writeType(request);
+
+    const reqBytes = try reqBuf.toOwnedSlice();
+    defer allocator.free(reqBytes);
+
+    // rewrite size message message segment with the actual message size
+    const sizeBytes = codec.packU32(@as(u32, @intCast(reqBytes.len)) - 4);
+    for (sizeBytes, 0..) |b, i| {
+        reqBytes[i] = b;
+    }
+
+    try streamWriter.writeAll(reqBytes);
+
+    std.debug.print("...\n", .{});
+    std.debug.print("sent {any}\n", .{reqBytes});
+
+    // response size
+    const respLen = try streamReader.readIntBig(i32);
+
+    var respBuf = try std.ArrayList(u8).initCapacity(allocator, @intCast(respLen));
+    defer respBuf.deinit();
+    try respBuf.resize(@intCast(respLen));
+    var respBytes = try respBuf.toOwnedSlice();
+    errdefer allocator.free(respBytes);
+
+    _ = try streamReader.read(respBytes);
+    std.debug.print("recv {any}\n", .{respBytes});
+
+    var reader = codec.Reader.init(allocator, respBytes);
+
+    // validate response is for this request
+    if (try reader.readI32() != headers.correlationId) {
+        return error.InvalidCorrelationId;
+    }
+
+    // response
+    return codec.Owned(responseType).fromReader(
+        try reader.readType(responseType),
+        reader,
+    );
+}
+
+test "roundTrip" {
     if (std.os.getenv("CI")) |_| {
         return error.SkipZigTest;
     }
@@ -78,54 +144,21 @@ test "bootstrap" {
 
         // roundtrip
         const request = protocol.MetadataRequest{
-            // .topic_names = &([_][]const u8{"test"}),
+            //.topic_names = &([_][]const u8{"test"}),
         };
         const responseType = protocol.MetadataReponse;
-        const headers = protocol.MessageHeaders.init(.metadata, 8, 1, "clientId");
 
-        var reqBuf = std.ArrayList(u8).init(allocator);
-        defer reqBuf.deinit();
-        var writer = codec.Writer(std.ArrayList(u8).Writer).init(reqBuf.writer());
-
-        // message (placeholder) size
-        try writer.writeI32(0);
-        try writer.writeType(headers);
-        try writer.writeType(request);
-
-        const reqBytes = try reqBuf.toOwnedSlice();
-        defer allocator.free(reqBytes);
-
-        // rewrite size message message segment with the actual message size
-        const sizeBytes = codec.packU32(@as(u32, @intCast(reqBytes.len)) - 4);
-        for (sizeBytes, 0..) |b, i| {
-            reqBytes[i] = b;
-        }
-
-        try stream.writer().writeAll(reqBytes);
-
-        std.debug.print("...\n", .{});
-        std.debug.print("sent {any}\n", .{reqBytes});
-
-        // response size
-        const respSize = try stream.reader().readIntBig(i32);
-
-        var respBuf = try std.ArrayList(u8).initCapacity(allocator, @intCast(respSize));
-        defer respBuf.deinit();
-        try respBuf.resize(@intCast(respSize));
-        var respBytes = try respBuf.toOwnedSlice();
-        defer allocator.free(respBytes);
-
-        _ = try stream.reader().read(respBytes);
-        std.debug.print("recv {any}\n", .{respBytes});
-
-        var reader = codec.Reader.init(allocator, respBytes);
-
-        // headers
-        try std.testing.expect(try reader.readI32() == headers.correlationId);
-
-        // response
-        const response = try reader.readType(responseType);
-        const owned = codec.Owned(responseType).init(response, reader.allocator);
+        const owned = try roundTrip(
+            allocator,
+            .metadata,
+            8,
+            1,
+            "clientId",
+            request,
+            responseType,
+            stream.reader(),
+            stream.writer(),
+        );
         defer owned.deinit();
         std.debug.print("response {}\n", .{owned.value});
         for (owned.value.brokers) |broker| {

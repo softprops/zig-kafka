@@ -8,10 +8,15 @@ pub fn Owned(comptime T: type) type {
         value: T,
         allocator: std.heap.ArenaAllocator,
 
-        pub fn init(value: T, allocator: std.heap.ArenaAllocator) @This() {
-            return .{ .value = value, .allocator = allocator };
+        /// Values are assumed to have been derived from a Reader.
+        /// Owned values outlive the reader and take ownership of the readers
+        /// allocations and as such becomes reponsible for deinit'ing them
+        pub fn fromReader(value: T, reader: Reader) @This() {
+            return .{ .value = value, .allocator = reader.allocator };
         }
 
+        /// Call this to free underlying memory after using the value
+        /// for the purposes needed by the caller
         pub fn deinit(self: @This()) void {
             self.allocator.deinit();
         }
@@ -25,9 +30,16 @@ pub const Reader = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, data: []const u8) Self {
-        return .{ .allocator = std.heap.ArenaAllocator.init(allocator), .data = data };
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer allocator.free(data);
+        // dup'ing data to guarantee we own this memory allowing us to outlive the
+        // data's source
+        const owned = arena.allocator().dupe(u8, data) catch unreachable;
+        return .{ .allocator = arena, .data = owned };
     }
 
+    /// Call this to free memory which may have been allocated during readType options
+    /// Alternatively create a Owned type passing this reponsibility off to a caller
     pub fn deinit(self: *Self) void {
         self.allocator.deinit();
     }
@@ -117,7 +129,7 @@ pub const Reader = struct {
                         );
                         return err;
                     };
-                    std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
+                    // std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
                     @field(parsed, field.name) = value;
                 }
                 return parsed;
@@ -145,9 +157,9 @@ pub const Reader = struct {
                 if (p.child == u8) {
                     return self.readStr();
                 }
-                std.debug.print("reading slice len\n", .{});
+                //std.debug.print("reading slice len\n", .{});
                 const len = try self.readI32();
-                std.debug.print("read slice len {d}\n", .{len});
+                //std.debug.print("read slice len {d}\n", .{len});
 
                 if (len < 1) {
                     return &[_]p.child{};
@@ -176,11 +188,11 @@ pub fn packU32(u: u32) [4]u8 {
 }
 
 /// Encodes kafka protocol types to a target writer
-pub fn Writer(comptime WrappedWriter: type) type {
+pub fn Writer(comptime W: type) type {
     return struct {
-        writer: WrappedWriter,
+        writer: W,
         const Self = @This();
-        pub fn init(writer: WrappedWriter) Self {
+        pub fn init(writer: W) Self {
             return .{ .writer = writer };
         }
 
@@ -299,7 +311,7 @@ test "type round trip" {
     );
 
     var bytes = try buffer.toOwnedSlice();
-    defer allocator.free(bytes);
+    errdefer allocator.free(bytes);
 
     if (bytes.len < 1) {
         return;
@@ -326,9 +338,10 @@ test "round trip" {
     try writer.writeF64(5.123);
 
     var bytes = try buffer.toOwnedSlice();
-    defer allocator.free(bytes);
+    errdefer allocator.free(bytes);
 
     var reader = Reader.init(allocator, bytes);
+    defer reader.deinit();
 
     try std.testing.expectEqual(true, try reader.readBool());
     try std.testing.expectEqual(false, try reader.readBool());
