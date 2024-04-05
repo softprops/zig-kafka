@@ -106,7 +106,7 @@ pub const Reader = struct {
 
     pub fn readType(self: *Self, comptime T: type) !T {
         const info = @typeInfo(T);
-        switch (info) {
+        return switch (info) {
             .Optional => |o| {
                 // we only support optional strs
                 if (o.child == []const u8) {
@@ -129,29 +129,23 @@ pub const Reader = struct {
                         );
                         return err;
                     };
-                    // std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
+                    //std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
                     @field(parsed, field.name) = value;
                 }
                 return parsed;
             },
-            .Int => |i| {
-                switch (i.bits) {
-                    8 => return self.readI8(),
-                    16 => return self.readI16(),
-                    32 => return self.readI32(),
-                    64 => return self.readI64(),
-                    else => @compileError("int with these bits not supported"),
-                }
+            .Int => |i| switch (i.bits) {
+                8 => return self.readI8(),
+                16 => return self.readI16(),
+                32 => return self.readI32(),
+                64 => return self.readI64(),
+                else => @compileError("int with these bits not supported"),
             },
-            .Float => |f| {
-                switch (f.bits) {
-                    64 => return self.readF64(),
-                    else => @compileError("float with these bits not supported"),
-                }
+            .Float => |f| switch (f.bits) {
+                64 => return self.readF64(),
+                else => @compileError("float with these bits not supported"),
             },
-            .Bool => {
-                return self.readBool();
-            },
+            .Bool => self.readBool(),
             .Pointer => |p| {
                 // fixme: how do we distinguish between string and bytes?
                 if (p.child == u8) {
@@ -176,7 +170,7 @@ pub const Reader = struct {
                 std.debug.print("unable to parse type {any}", .{otherwise});
                 @compileError("supported type " ++ @typeName(T));
             },
-        }
+        };
     }
 };
 
