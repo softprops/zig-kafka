@@ -44,7 +44,7 @@ pub const ResponseTopic = struct {
     /// The topic name.
     name: ?[]const u8, // compact nullable str
     /// The topic id.
-    topic_id: []const u8, // uuid
+    //topic_id: []const u8, // uuid
     /// True if the topic is internal.
     is_internal: bool,
     /// Each partition in the topic.
