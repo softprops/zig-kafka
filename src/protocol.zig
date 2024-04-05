@@ -222,6 +222,15 @@ pub const ErrorCode = enum(i8) {
     pub fn isError(self: @This()) bool {
         return self != .none;
     }
+
+    pub fn nonNone(c: i8) ?ErrorCode {
+        if (ErrorCode.from(c)) |ec| {
+            if (ec.isError()) {
+                return ec;
+            }
+        }
+        return null;
+    }
 };
 
 test "error" {
