@@ -104,6 +104,7 @@ pub const Reader = struct {
         return self.data.len < 1;
     }
 
+    /// this method allocates memory with reading slices
     pub fn readType(self: *Self, comptime T: type) !T {
         const info = @typeInfo(T);
         return switch (info) {
@@ -118,18 +119,18 @@ pub const Reader = struct {
                 var parsed: T = undefined;
                 // todo: provide hook for custom struct reading
                 inline for (s.fields) |field| {
+                    //std.debug.print("resolving field {s}\n", .{field.name});
                     const value = self.readType(field.type) catch |err| {
                         std.debug.print(
-                            "failed to resolve value of type {s} for field {s} of object {any}\n",
+                            "failed to resolve value of type {s} for field {s}\n",
                             .{
                                 field.name,
                                 @typeName(field.type),
-                                parsed,
                             },
                         );
                         return err;
                     };
-                    //std.debug.print("field {s} assigned to value {any}\n", .{ field.name, value });
+                    //std.debug.print("assigning field {s} to value {any}\n", .{ field.name, value });
                     @field(parsed, field.name) = value;
                 }
                 return parsed;
@@ -156,6 +157,7 @@ pub const Reader = struct {
                 //std.debug.print("read slice len {d}\n", .{len});
 
                 if (len < 1) {
+                    // don't bother allocating if there's nothing to allocate
                     return &[_]p.child{};
                 }
 
@@ -296,7 +298,7 @@ test "type round trip" {
         bytes: []const u8 = "bytes",
         children: []const C = &([_]C{
             .{
-                .name = "test",
+                .name = "t",
             },
         }),
     };
