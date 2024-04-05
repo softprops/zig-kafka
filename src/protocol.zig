@@ -199,40 +199,60 @@ pub const ApiKey = enum(i16) {
 /// An enumeration of error codes indicating what problem occurred on the server.
 ///
 /// see also https://kafka.apache.org/protocol#protocol_error_codes
-pub const Error = enum(i8) {
+pub const ErrorCode = enum(i8) {
     unknown_server_error = -1,
     none = 0,
     offset_out_of_range = 1,
     corrupt_message = 2,
+    unknown_topic_or_parition = 3,
+    invalid_fetch_size = 4,
+    leader_not_available = 5,
 
-    fn retryable(self: @This()) bool {
+    pub fn fromCode(c: i8) ?ErrorCode {
+        return @enumFromInt(c);
+    }
+
+    fn isRetryable(self: @This()) bool {
         return switch (self) {
-            .corrupt_message => true,
+            .corrupt_message, .unknown_topic_or_parition, .leader_not_available => true,
             else => false,
         };
+    }
+
+    pub fn isError(self: @This()) bool {
+        return self != .none;
     }
 };
 
 test "error" {
     const tests = [_]struct {
-        expect: Error,
+        expect: ErrorCode,
         code: i8,
-        retryable: bool,
+        retryable: bool = false,
+        err: bool = true,
     }{
         .{
             .expect = .unknown_server_error,
             .code = -1,
-            .retryable = false,
+        },
+        .{
+            .expect = .none,
+            .code = 0,
+            .err = false,
         },
     };
     for (tests) |t| {
         try std.testing.expectEqual(
-            @as(Error, @enumFromInt(t.code)),
+            ErrorCode.fromCode(t.code),
             t.expect,
         );
         try std.testing.expectEqual(
-            @as(Error, @enumFromInt(t.code)).retryable(),
+            ErrorCode.fromCode(t.code).?.isRetryable(),
             t.retryable,
+        );
+        try std.testing.expectEqual(
+            ErrorCode.fromCode(t.code).?.isError(),
+            t.err,
         );
     }
 }
