@@ -135,14 +135,14 @@ pub const Reader = struct {
                 return parsed;
             },
             .Int => |i| switch (i.bits) {
-                8 => return self.readI8(),
-                16 => return self.readI16(),
-                32 => return self.readI32(),
-                64 => return self.readI64(),
+                8 => self.readI8(),
+                16 => self.readI16(),
+                32 => self.readI32(),
+                64 => self.readI64(),
                 else => @compileError("int with these bits not supported"),
             },
             .Float => |f| switch (f.bits) {
-                64 => return self.readF64(),
+                64 => self.readF64(),
                 else => @compileError("float with these bits not supported"),
             },
             .Bool => self.readBool(),
