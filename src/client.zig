@@ -141,24 +141,21 @@ test "roundTrip" {
         const stream = try std.net.tcpConnectToAddress(addr);
         defer stream.close();
 
-        // roundtrip
-        const request = protocol.MetadataRequest{
-            //.topic_names = &([_][]const u8{"test"}),
-        };
-
-        const owned = try roundTrip(
+        const response: codec.Owned(protocol.MetadataReponse) = try roundTrip(
             allocator,
             .metadata,
             8,
             1,
             "clientId",
-            request,
+            protocol.MetadataRequest{
+                //.topic_names = &([_][]const u8{"test"}),
+            },
             stream.reader(),
             stream.writer(),
         );
-        defer owned.deinit();
-        std.debug.print("response {}\n", .{owned.value});
-        for (owned.value.brokers) |broker| {
+        defer response.deinit();
+        std.debug.print("response {}\n", .{response.value});
+        for (response.value.brokers) |broker| {
             std.debug.print("broker {s}:{d}\n", .{ broker.host, broker.port });
         }
     }
