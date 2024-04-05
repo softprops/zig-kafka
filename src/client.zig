@@ -66,7 +66,7 @@ fn roundTrip(
     apiVersion: i16,
     correlationId: i32,
     clientId: []const u8,
-    request: anytype,
+    request: apiKey.requestType(),
     streamReader: anytype,
     streamWriter: anytype,
 ) !codec.Owned(apiKey.responseType()) {
