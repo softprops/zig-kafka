@@ -1,6 +1,12 @@
 /// https://kafka.apache.org/protocol#protocol_types
 const std = @import("std");
 
+/// A type to help distinguish between a string represented by `[]const u8` in zig and arbitrary
+/// bytes also represented by `[]const u8` in zig
+pub const Bytes = struct {
+    bytes: []const u8,
+};
+
 /// Represents a value and a deferred release of memory the caller owns.
 /// The caller owns calling `deinit()` after using the value.
 pub fn Owned(comptime T: type) type {
@@ -116,6 +122,9 @@ pub const Reader = struct {
                 @compileError("optional types of " ++ @typeName(o.child) ++ " are not supported");
             },
             .Struct => |s| {
+                if (T == Bytes) {
+                    return Bytes{ .bytes = try self.readBytes() };
+                }
                 var parsed: T = undefined;
                 // todo: provide hook for custom struct reading
                 inline for (s.fields) |field| {
@@ -148,7 +157,6 @@ pub const Reader = struct {
             },
             .Bool => self.readBool(),
             .Pointer => |p| {
-                // fixme: how do we distinguish between string and bytes?
                 if (p.child == u8) {
                     return self.readStr();
                 }
@@ -236,6 +244,9 @@ pub fn Writer(comptime W: type) type {
             const T = @TypeOf(value);
             switch (@typeInfo(T)) {
                 .Struct => |i| {
+                    if (T == Bytes) {
+                        return try self.writeBytes(value.bytes);
+                    }
                     // todo: provide hook for custom struct writing
                     inline for (i.fields) |field| {
                         try self.writeType(@field(value, field.name));
@@ -260,7 +271,6 @@ pub fn Writer(comptime W: type) type {
                     try self.writeBool(value);
                 },
                 .Pointer => |p| {
-                    // fixme: how do we distinguish between string and bytes?
                     if (p.child == u8) {
                         try self.writeStr(value);
                     } else {
@@ -295,7 +305,7 @@ test "type round trip" {
         i64: i64 = 64,
         f64: f64 = 64.64,
         string: []const u8 = "string",
-        bytes: []const u8 = "bytes",
+        bytes: Bytes = .{ .bytes = "bytes" },
         children: []const C = &([_]C{
             .{
                 .name = "t",
