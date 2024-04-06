@@ -84,6 +84,31 @@ pub const Reader = struct {
         return @bitCast(@constCast((try self.read(8))[0..8]).*);
     }
 
+    // unsigned "zigzag" encoded int
+    pub fn readUnsignedVarInt(self: *Self) !u64 {
+        var val: u32 = 0;
+        for (0..5) |i| {
+            const b: u32 = @intCast((try self.read(1))[0]);
+            val |= (b & 0x7F) << @intCast(i * 7);
+            if (b < 0x80) {
+                break;
+            }
+        }
+        return val;
+    }
+
+    pub fn readUnsignedVarLong(self: *Self) !u64 {
+        var val: u64 = 0;
+        for (0..10) |i| {
+            const b: u64 = @intCast((try self.read(1))[0]);
+            val |= (b & 0x7F) << @intCast(i * 7);
+            if (b < 0x80) {
+                break;
+            }
+        }
+        return val;
+    }
+
     pub fn readNullableStr(self: *Self) !?[]const u8 {
         const len = try self.readI16();
         if (len == -1) {
@@ -228,6 +253,25 @@ pub fn Writer(comptime W: type) type {
             try self.writer.writeAll(&@as([8]u8, @bitCast(f)));
         }
 
+        // unsigned "zigzag" encoded int
+        pub fn writeUnsignedVarInt(self: *Self, i: u32) !void {
+            var value: u32 = i;
+            while (value >= 0x80) {
+                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .Big);
+                value >>= 7;
+            }
+            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
+        }
+
+        pub fn writeUnsignedVarLong(self: *Self, i: u64) !void {
+            var value: u64 = i;
+            while (value >= 0x80) {
+                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .Big);
+                value >>= 7;
+            }
+            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
+        }
+
         pub fn writeStr(self: *Self, s: []const u8) !void {
             const len: i16 = @intCast(s.len);
             try self.writer.writeInt(i16, len, .Big);
@@ -342,6 +386,8 @@ test "round trip" {
     try writer.writeI64(64);
     try writer.writeI8(8);
     try writer.writeF64(5.123);
+    try writer.writeUnsignedVarInt(32);
+    try writer.writeUnsignedVarLong(64);
 
     var bytes = try buffer.toOwnedSlice();
     errdefer allocator.free(bytes);
@@ -357,5 +403,7 @@ test "round trip" {
     try std.testing.expectEqual(try reader.readI64(), 64);
     try std.testing.expectEqual(try reader.readI8(), 8);
     try std.testing.expectEqual(try reader.readF64(), 5.123);
+    try std.testing.expectEqual(try reader.readUnsignedVarInt(), 32);
+    try std.testing.expectEqual(try reader.readUnsignedVarLong(), 64);
     try std.testing.expect(reader.isEmpty());
 }
