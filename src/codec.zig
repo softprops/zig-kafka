@@ -142,6 +142,11 @@ pub const Reader = struct {
         return if (len > 0) self.read(@intCast(len)) else self.data[0..0];
     }
 
+    pub fn readCompactBytes(self: *Self) ![]const u8 {
+        const len = try self.readUnsignedVarInt();
+        return if (len > 0) self.read(@intCast(len - 1)) else self.data[0..0];
+    }
+
     pub fn readArrayLen(self: *Self) !i32 {
         return @max(try self.readI32(), 0);
     }
@@ -313,10 +318,18 @@ pub fn Writer(comptime W: type) type {
             try self.writer.writeAll(s);
         }
 
-        pub fn writeBytes(self: *Self, s: []const u8) !void {
-            const len: i32 = @intCast(s.len);
+        pub fn writeBytes(self: *Self, b: []const u8) !void {
+            const len: i32 = @intCast(b.len);
             try self.writer.writeInt(i32, len, .Big);
-            try self.writer.writeAll(s);
+            try self.writer.writeAll(b);
+        }
+
+        pub fn writeCompactBytes(self: *Self, b: []const u8) !void {
+            if (b.len == 0) {
+                return try self.writeUnsignedVarInt(0);
+            }
+            try self.writeUnsignedVarInt(@as(u32, @intCast(b.len)) + 1);
+            try self.writer.writeAll(b);
         }
 
         pub fn writeType(self: *Self, value: anytype) !void {
@@ -415,7 +428,8 @@ test "round trip" {
 
     try writer.writeBool(true);
     try writer.writeBool(false);
-    try writer.writeBytes("rand");
+    try writer.writeBytes("bytes");
+    try writer.writeCompactBytes("cbytes");
     try writer.writeStr("str");
     try writer.writeCompactStr("cstr");
     try writer.writeI32(32);
@@ -435,7 +449,8 @@ test "round trip" {
 
     try std.testing.expectEqual(true, try reader.readBool());
     try std.testing.expectEqual(false, try reader.readBool());
-    try std.testing.expectEqualSlices(u8, "rand", try reader.readBytes());
+    try std.testing.expectEqualSlices(u8, "bytes", try reader.readBytes());
+    try std.testing.expectEqualSlices(u8, "cbytes", try reader.readCompactBytes());
     try std.testing.expectEqualSlices(u8, "str", try reader.readStr());
     try std.testing.expectEqualSlices(u8, "cstr", try reader.readCompactStr());
     try std.testing.expectEqual(try reader.readI32(), 32);
