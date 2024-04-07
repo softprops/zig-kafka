@@ -85,7 +85,7 @@ pub const Reader = struct {
     }
 
     // unsigned "zigzag" encoded int
-    pub fn readUnsignedVarInt(self: *Self) !u64 {
+    pub fn readUnsignedVarInt(self: *Self) !u32 {
         var val: u32 = 0;
         for (0..5) |i| {
             const b: u32 = @intCast((try self.read(1))[0]);
@@ -95,6 +95,11 @@ pub const Reader = struct {
             }
         }
         return val;
+    }
+
+    pub fn readVarInt(self: *Self) !i32 {
+        var unsigned = try self.readUnsignedVarInt();
+        return @as(i32, @intCast(unsigned >> 1)) ^ (-@as(i32, @intCast((unsigned & 1))));
     }
 
     pub fn readUnsignedVarLong(self: *Self) !u64 {
@@ -107,6 +112,11 @@ pub const Reader = struct {
             }
         }
         return val;
+    }
+
+    pub fn readVarLong(self: *Self) !i64 {
+        var unsigned = try self.readUnsignedVarLong();
+        return @as(i64, @intCast(unsigned >> 1)) ^ (-@as(i64, @intCast((unsigned & 1))));
     }
 
     pub fn readNullableStr(self: *Self) !?[]const u8 {
@@ -263,6 +273,12 @@ pub fn Writer(comptime W: type) type {
             try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
         }
 
+        pub fn writeVarInt(self: *Self, i: i32) !void {
+            var value = i;
+            const unsigned: u32 = @intCast((value << 1) ^ (value >> 31));
+            return self.writeUnsignedVarInt(unsigned);
+        }
+
         pub fn writeUnsignedVarLong(self: *Self, i: u64) !void {
             var value: u64 = i;
             while (value >= 0x80) {
@@ -270,6 +286,12 @@ pub fn Writer(comptime W: type) type {
                 value >>= 7;
             }
             try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
+        }
+
+        pub fn writeVarLong(self: *Self, i: i64) !void {
+            var value = i;
+            const unsigned: u64 = @intCast((value << 1) ^ (value >> 63));
+            return self.writeUnsignedVarLong(unsigned);
         }
 
         pub fn writeStr(self: *Self, s: []const u8) !void {
@@ -388,6 +410,8 @@ test "round trip" {
     try writer.writeF64(5.123);
     try writer.writeUnsignedVarInt(32);
     try writer.writeUnsignedVarLong(64);
+    try writer.writeVarInt(-32);
+    try writer.writeVarLong(-64);
 
     var bytes = try buffer.toOwnedSlice();
     errdefer allocator.free(bytes);
@@ -405,5 +429,7 @@ test "round trip" {
     try std.testing.expectEqual(try reader.readF64(), 5.123);
     try std.testing.expectEqual(try reader.readUnsignedVarInt(), 32);
     try std.testing.expectEqual(try reader.readUnsignedVarLong(), 64);
+    try std.testing.expectEqual(try reader.readVarInt(), -32);
+    try std.testing.expectEqual(try reader.readVarLong(), -64);
     try std.testing.expect(reader.isEmpty());
 }
