@@ -132,6 +132,11 @@ pub const Reader = struct {
         return if (len > 0) self.read(@intCast(len)) else "";
     }
 
+    pub fn readCompactStr(self: *Self) ![]const u8 {
+        const len = try self.readUnsignedVarInt();
+        return if (len > 0) self.read(@intCast(len - 1)) else "";
+    }
+
     pub fn readBytes(self: *Self) ![]const u8 {
         const len = try self.readI32();
         return if (len > 0) self.read(@intCast(len)) else self.data[0..0];
@@ -300,6 +305,14 @@ pub fn Writer(comptime W: type) type {
             try self.writer.writeAll(s);
         }
 
+        pub fn writeCompactStr(self: *Self, s: []const u8) !void {
+            if (s.len == 0) {
+                return try self.writeUnsignedVarInt(0);
+            }
+            try self.writeUnsignedVarInt(@as(u32, @intCast(s.len)) + 1);
+            try self.writer.writeAll(s);
+        }
+
         pub fn writeBytes(self: *Self, s: []const u8) !void {
             const len: i32 = @intCast(s.len);
             try self.writer.writeInt(i32, len, .Big);
@@ -404,6 +417,7 @@ test "round trip" {
     try writer.writeBool(false);
     try writer.writeBytes("rand");
     try writer.writeStr("str");
+    try writer.writeCompactStr("cstr");
     try writer.writeI32(32);
     try writer.writeI64(64);
     try writer.writeI8(8);
@@ -423,6 +437,7 @@ test "round trip" {
     try std.testing.expectEqual(false, try reader.readBool());
     try std.testing.expectEqualSlices(u8, "rand", try reader.readBytes());
     try std.testing.expectEqualSlices(u8, "str", try reader.readStr());
+    try std.testing.expectEqualSlices(u8, "cstr", try reader.readCompactStr());
     try std.testing.expectEqual(try reader.readI32(), 32);
     try std.testing.expectEqual(try reader.readI64(), 64);
     try std.testing.expectEqual(try reader.readI8(), 8);
