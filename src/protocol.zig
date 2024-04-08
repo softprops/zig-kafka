@@ -3,12 +3,16 @@ const std = @import("std");
 
 const apiversions = @import("apiversions.zig");
 const metadata = @import("metadata.zig");
+const fetch = @import("fetch.zig");
 
 pub const ApiVersionsRequest = apiversions.Request;
 pub const ApiVersionsResponse = apiversions.Response;
 
 pub const MetadataRequest = metadata.Request;
 pub const MetadataReponse = metadata.Response;
+
+pub const FetchRequest = fetch.Request;
+pub const FetchResponse = fetch.Response;
 
 pub const MessageHeaders = struct {
     apiKey: i16,
@@ -36,7 +40,7 @@ pub const MessageHeaders = struct {
 /// see also https://kafka.apache.org/protocol#protocol_api_keys
 pub const ApiKey = enum(i16) {
     //produce = 0,
-    //fetch = 1,
+    fetch = 1,
     //offset = 2,
     metadata = 3,
     //leaderAndIsr = 4,
@@ -92,7 +96,7 @@ pub const ApiKey = enum(i16) {
     pub fn requestType(comptime self: @This()) type {
         return switch (self) {
             //produce => ???,
-            //fetch => ???,
+            .fetch => FetchRequest,
             //offset => ???,
             .metadata => MetadataRequest,
             //leaderAndIsr => ???,
@@ -145,7 +149,7 @@ pub const ApiKey = enum(i16) {
     pub fn responseType(comptime self: @This()) type {
         return switch (self) {
             //produce => ???,
-            //fetch => ???,
+            .fetch => FetchResponse,
             //offset => ???,
             .metadata => MetadataReponse,
             //leaderAndIsr => ???,
@@ -204,7 +208,7 @@ pub const ErrorCode = enum(i8) {
     none = 0,
     offset_out_of_range = 1,
     corrupt_message = 2,
-    unknown_topic_or_parition = 3,
+    unknown_topic_or_partition = 3,
     invalid_fetch_size = 4,
     leader_not_available = 5,
 
@@ -214,7 +218,7 @@ pub const ErrorCode = enum(i8) {
 
     fn isRetryable(self: @This()) bool {
         return switch (self) {
-            .corrupt_message, .unknown_topic_or_parition, .leader_not_available => true,
+            .corrupt_message, .unknown_topic_or_partition, .leader_not_available => true,
             else => false,
         };
     }

@@ -1,5 +1,6 @@
 /// https://kafka.apache.org/protocol#protocol_types
 const std = @import("std");
+const record = @import("record.zig");
 
 /// A type to help distinguish between a string represented by `[]const u8` in zig and arbitrary
 /// bytes also represented by `[]const u8` in zig
@@ -18,7 +19,10 @@ pub fn Owned(comptime T: type) type {
         /// Owned values outlive the reader and take ownership of the readers
         /// allocations and as such becomes reponsible for deinit'ing them
         pub fn fromReader(value: T, reader: Reader) @This() {
-            return .{ .value = value, .allocator = reader.allocator };
+            return .{
+                .value = value,
+                .allocator = reader.allocator,
+            };
         }
 
         /// Call this to free underlying memory after using the value
@@ -50,7 +54,7 @@ pub const Reader = struct {
         self.allocator.deinit();
     }
 
-    fn read(self: *Self, n: usize) ![]const u8 {
+    pub fn read(self: *Self, n: usize) ![]const u8 {
         if (n > self.data.len) {
             return error.EOF;
         } else {
@@ -151,7 +155,7 @@ pub const Reader = struct {
         return @max(try self.readI32(), 0);
     }
 
-    fn isEmpty(self: *Self) bool {
+    pub fn isEmpty(self: *Self) bool {
         return self.data.len < 1;
     }
 
@@ -169,6 +173,18 @@ pub const Reader = struct {
             .Struct => |s| {
                 if (T == Bytes) {
                     return Bytes{ .bytes = try self.readBytes() };
+                }
+                if (T == record.RecordBatch) {
+                    // in versions >= 12 this is compact bytes
+                    // otherwise this is regular bytes
+                    std.debug.print("resolving batch remaining bytes {any}\n", .{self.data});
+                    var recordBytes = try self.readBytes();
+                    std.debug.print("recordBytes {any}\n", .{recordBytes});
+                    var nextReader = Reader{
+                        .data = recordBytes,
+                        .allocator = self.allocator,
+                    };
+                    return try record.RecordBatch.init(&nextReader);
                 }
                 var parsed: T = undefined;
                 // todo: provide hook for custom struct reading
@@ -215,7 +231,7 @@ pub const Reader = struct {
                 }
 
                 var buf = try std.ArrayList(p.child).initCapacity(self.allocator.allocator(), @intCast(len));
-                defer buf.deinit();
+                errdefer buf.deinit();
                 for (0..@intCast(len)) |_| {
                     buf.appendAssumeCapacity(try self.readType(p.child));
                 }
@@ -384,6 +400,7 @@ pub fn Writer(comptime W: type) type {
 test "type round trip" {
     const allocator = std.testing.allocator;
     var buffer = std.ArrayList(u8).init(allocator);
+    errdefer buffer.deinit();
 
     var writer = Writer(std.ArrayList(u8).Writer).init(buffer.writer());
     const C = struct {
@@ -423,7 +440,7 @@ test "type round trip" {
 test "round trip" {
     const allocator = std.testing.allocator;
     var buffer = std.ArrayList(u8).init(allocator);
-
+    errdefer buffer.deinit();
     var writer = Writer(std.ArrayList(u8).Writer).init(buffer.writer());
 
     try writer.writeBool(true);
