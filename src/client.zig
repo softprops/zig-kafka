@@ -100,11 +100,11 @@ fn roundTrip(
 
     std.log.debug("sent {any}\n", .{reqBytes});
 
-    const respLen = try streamReader.readIntBig(i32);
+    const respLen = try streamReader.readInt(i32, .big);
     var respBuf = try std.ArrayList(u8).initCapacity(allocator, @intCast(respLen));
     errdefer respBuf.deinit();
     try respBuf.resize(respBuf.capacity);
-    var respBytes = try respBuf.toOwnedSlice();
+    const respBytes = try respBuf.toOwnedSlice();
 
     _ = try streamReader.read(respBytes);
     std.log.debug("recv {any}\n", .{respBytes});
@@ -124,7 +124,7 @@ fn roundTrip(
 }
 
 test "roundTrip" {
-    if (std.os.getenv("CI")) |_| {
+    if (std.posix.getenv("CI")) |_| {
         return error.SkipZigTest;
     }
     const allocator = std.testing.allocator;
@@ -145,7 +145,9 @@ test "roundTrip" {
         const response: codec.Owned(protocol.FetchResponse) = try roundTrip(
             allocator,
             .fetch,
+            // .metadata,
             11,
+            //8,
             1,
             "clientId",
             protocol.FetchRequest{
@@ -182,7 +184,7 @@ test "roundTrip" {
             stream.writer(),
         );
         defer response.deinit();
-        //std.debug.print("response {any}\n", .{response.value});
+        std.debug.print("response {any}\n", .{response.value});
         for (response.value.responses) |topic| {
             for (topic.partitions) |partition| {
                 std.debug.print("partition {any}\n", .{partition});

@@ -64,7 +64,7 @@ pub const RecordBatch = struct {
     records: []const Record,
     pub fn init(reader: *codec.Reader) !@This() {
         var batchReader = RecordBatchReader{ .reader = reader };
-        var records = try batchReader.read();
+        const records = try batchReader.read();
         return .{ .records = records };
     }
 };
@@ -108,8 +108,8 @@ pub const RecordBatchReader = struct {
 
     // https://kafka.apache.org/documentation/#messageset
     fn readLegacyBatch(self: @This(), version: i8, records: *std.ArrayList(Record)) !void {
-        var baseOffset = try self.reader.readI64();
-        var batchLen = try self.reader.readI32();
+        const baseOffset = try self.reader.readI64();
+        const batchLen = try self.reader.readI32();
         if (batchLen < 0) {
             return error.InvalidBatchSize;
         }
@@ -121,7 +121,7 @@ pub const RecordBatchReader = struct {
         // crc (todo: verify this)
         _ = try batchReader.readI32();
 
-        var magic = try batchReader.readI8();
+        const magic = try batchReader.readI8();
         if (magic != version) {
             return error.InvalidRecordVersion;
         }
@@ -140,8 +140,8 @@ pub const RecordBatchReader = struct {
 
     // https://kafka.apache.org/documentation/#recordbatch
     fn readNewBatch(self: *@This(), version: i8, records: *std.ArrayList(Record)) !void {
-        var baseOffset = try self.reader.readI64();
-        var batchLen = try self.reader.readI32();
+        const baseOffset = try self.reader.readI64();
+        const batchLen = try self.reader.readI32();
         if (batchLen < 0) {
             return error.InvalidBatchSize;
         }
@@ -200,12 +200,12 @@ pub const RecordBatchReader = struct {
             const sequence = baseSequence +% offsetDelta;
             _ = sequence;
 
-            var keyLen = try recordReader.readVarInt();
-            var key = try recordReader.read(@intCast(keyLen));
-            var valLen = try recordReader.readVarInt();
-            var value = try recordReader.read(@intCast(valLen));
+            const keyLen = try recordReader.readVarInt();
+            const key = try recordReader.read(@intCast(keyLen));
+            const valLen = try recordReader.readVarInt();
+            const value = try recordReader.read(@intCast(valLen));
 
-            var headerCount = try recordReader.readVarInt();
+            const headerCount = try recordReader.readVarInt();
             var headers = std.ArrayList(Header).init(recordReader.allocator.allocator());
             for (0..@intCast(headerCount)) |_| {
                 const headerKeyLen = try recordReader.readVarInt();

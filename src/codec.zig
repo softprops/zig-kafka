@@ -58,7 +58,7 @@ pub const Reader = struct {
         if (n > self.data.len) {
             return error.EOF;
         } else {
-            var slice = self.data[0..n];
+            const slice = self.data[0..n];
             self.data = self.data[n..];
             return slice;
         }
@@ -73,15 +73,15 @@ pub const Reader = struct {
     }
 
     pub fn readI16(self: *Self) !i16 {
-        return std.mem.readIntBig(i16, (try self.read(2))[0..2]);
+        return std.mem.readInt(i16, (try self.read(2))[0..2], .big);
     }
 
     pub fn readI32(self: *Self) !i32 {
-        return std.mem.readIntBig(i32, (try self.read(4))[0..4]);
+        return std.mem.readInt(i32, (try self.read(4))[0..4], .big);
     }
 
     pub fn readI64(self: *Self) !i64 {
-        return std.mem.readIntBig(i64, (try self.read(8))[0..8]);
+        return std.mem.readInt(i64, (try self.read(8))[0..8], .big);
     }
 
     pub fn readF64(self: *Self) !f64 {
@@ -102,7 +102,7 @@ pub const Reader = struct {
     }
 
     pub fn readVarInt(self: *Self) !i32 {
-        var unsigned = try self.readUnsignedVarInt();
+        const unsigned = try self.readUnsignedVarInt();
         return @as(i32, @intCast(unsigned >> 1)) ^ (-@as(i32, @intCast((unsigned & 1))));
     }
 
@@ -119,7 +119,7 @@ pub const Reader = struct {
     }
 
     pub fn readVarLong(self: *Self) !i64 {
-        var unsigned = try self.readUnsignedVarLong();
+        const unsigned = try self.readUnsignedVarLong();
         return @as(i64, @intCast(unsigned >> 1)) ^ (-@as(i64, @intCast((unsigned & 1))));
     }
 
@@ -178,7 +178,7 @@ pub const Reader = struct {
                     // in versions >= 12 this is compact bytes
                     // otherwise this is regular bytes
                     std.debug.print("resolving batch remaining bytes {any}\n", .{self.data});
-                    var recordBytes = try self.readBytes();
+                    const recordBytes = try self.readBytes();
                     std.debug.print("recordBytes {any}\n", .{recordBytes});
                     var nextReader = Reader{
                         .data = recordBytes,
@@ -248,7 +248,7 @@ pub const Reader = struct {
 pub fn packU32(u: u32) [4]u8 {
     var buf: [4]u8 = undefined;
     var bufWriter = std.io.fixedBufferStream(&buf);
-    bufWriter.writer().writeInt(u32, u, .Big) catch unreachable;
+    bufWriter.writer().writeInt(u32, u, .big) catch unreachable;
     return buf;
 }
 
@@ -270,19 +270,19 @@ pub fn Writer(comptime W: type) type {
         }
 
         pub fn writeI8(self: *Self, i: i8) !void {
-            try self.writer.writeInt(i8, i, .Big);
+            try self.writer.writeInt(i8, i, .big);
         }
 
         pub fn writeI16(self: *Self, i: i16) !void {
-            try self.writer.writeInt(i16, i, .Big);
+            try self.writer.writeInt(i16, i, .big);
         }
 
         pub fn writeI32(self: *Self, i: i32) !void {
-            try self.writer.writeInt(i32, i, .Big);
+            try self.writer.writeInt(i32, i, .big);
         }
 
         pub fn writeI64(self: *Self, i: i64) !void {
-            try self.writer.writeInt(i64, i, .Big);
+            try self.writer.writeInt(i64, i, .big);
         }
 
         pub fn writeF64(self: *Self, f: f64) !void {
@@ -293,14 +293,14 @@ pub fn Writer(comptime W: type) type {
         pub fn writeUnsignedVarInt(self: *Self, i: u32) !void {
             var value: u32 = i;
             while (value >= 0x80) {
-                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .Big);
+                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .big);
                 value >>= 7;
             }
-            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
+            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .big);
         }
 
         pub fn writeVarInt(self: *Self, i: i32) !void {
-            var value = i;
+            const value = i;
             const unsigned: u32 = @intCast((value << 1) ^ (value >> 31));
             return self.writeUnsignedVarInt(unsigned);
         }
@@ -308,21 +308,21 @@ pub fn Writer(comptime W: type) type {
         pub fn writeUnsignedVarLong(self: *Self, i: u64) !void {
             var value: u64 = i;
             while (value >= 0x80) {
-                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .Big);
+                try self.writer.writeInt(u8, @as(u8, @intCast(value)) | 0x80, .big);
                 value >>= 7;
             }
-            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .Big);
+            try self.writer.writeInt(u8, @as(u8, @intCast(value)), .big);
         }
 
         pub fn writeVarLong(self: *Self, i: i64) !void {
-            var value = i;
+            const value = i;
             const unsigned: u64 = @intCast((value << 1) ^ (value >> 63));
             return self.writeUnsignedVarLong(unsigned);
         }
 
         pub fn writeStr(self: *Self, s: []const u8) !void {
             const len: i16 = @intCast(s.len);
-            try self.writer.writeInt(i16, len, .Big);
+            try self.writer.writeInt(i16, len, .big);
             try self.writer.writeAll(s);
         }
 
@@ -336,7 +336,7 @@ pub fn Writer(comptime W: type) type {
 
         pub fn writeBytes(self: *Self, b: []const u8) !void {
             const len: i32 = @intCast(b.len);
-            try self.writer.writeInt(i32, len, .Big);
+            try self.writer.writeInt(i32, len, .big);
             try self.writer.writeAll(b);
         }
 
@@ -425,7 +425,7 @@ test "type round trip" {
         T{},
     );
 
-    var bytes = try buffer.toOwnedSlice();
+    const bytes = try buffer.toOwnedSlice();
     errdefer allocator.free(bytes);
 
     if (bytes.len < 1) {
@@ -458,7 +458,7 @@ test "round trip" {
     try writer.writeVarInt(-32);
     try writer.writeVarLong(-64);
 
-    var bytes = try buffer.toOwnedSlice();
+    const bytes = try buffer.toOwnedSlice();
     errdefer allocator.free(bytes);
 
     var reader = Reader.init(allocator, bytes);
